@@ -42,10 +42,21 @@ export async function GET(req: Request) {
 
   // --- SAVE TOKENS ---
 
-  const userRes = await query<{ id: string }>(
-    "insert into app_user default values returning id"
+  const existingUserRes = await query<{ id: string }>(
+    `select id
+     from app_user
+     order by created_at desc
+     limit 1`
   );
-  const userId = userRes.rows[0].id;
+
+  let userId = existingUserRes.rows[0]?.id;
+
+  if (!userId) {
+    const userRes = await query<{ id: string }>(
+      "insert into app_user default values returning id"
+    );
+    userId = userRes.rows[0].id;
+  }
 
   const expiresIn = Number(tokenJson.expires_in ?? 0);
   const expiresAt = new Date(Date.now() + expiresIn * 1000);

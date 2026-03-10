@@ -1,84 +1,87 @@
 # Personal Health Tracker (Oura Ring)
 
-This project connects your Oura account to your app, saves OAuth tokens, fetches health data, and stores it in PostgreSQL for future analytics and dashboards.
+A full-stack personalized health tracking application that integrates wearable data (Oura Ring), user-logged meals and workouts, and data analysis to generate health insights and recommendations. Built with Next.js, TypeScript, PostgreSQL, and Python.
 
-## What You Have Completed
+## Prerequisites
 
-### Phase 1: Infrastructure
-- Node.js installed and working
-- Next.js app running on `http://localhost:3000`
-- Docker Desktop running
-- PostgreSQL running in Docker
-- Database tables created
+- Node.js 20+
+- npm 10+
+- Docker Desktop (running)
 
-### Phase 2: OAuth (Connect Oura)
-- Implemented callback route: `GET /api/auth/oura/callback`
-- Exchanged OAuth `code` for `access_token` and `refresh_token`
-- Saved tokens in `oura_token` table
+## First-time setup
 
-### Phase 3: Data Sync
-- Implemented sync service in `apps/web/src/lib/oura.ts`
-- Added sync API route: `GET /api/oura/sync`
-- Fetched Oura data from:
-  - `daily_sleep`
-  - `daily_activity`
-  - `daily_readiness`
-- Saved raw data to `oura_raw_daily`
-- Upserted clean metrics to `daily_summary`
-- Added token auto-refresh on `401` and retry logic
-- Triggered initial sync automatically after OAuth callback
+1. Install web dependencies:
 
-## Current Working Flow
+```powershell
+npm --prefix apps/web install
+```
 
-1. User logs into Oura and approves access.
-2. Oura redirects to `/api/auth/oura/callback?code=...`
-3. App exchanges code for tokens and saves them.
-4. App runs initial 30-day sync.
-5. App can run manual sync with `/api/oura/sync?days=7` (or any `1-365`).
-
-## Main Endpoints
-
-- `GET /api/auth/oura/callback`
-  - Handles OAuth callback, saves tokens, triggers initial sync.
-- `GET /api/oura/sync`
-  - Runs sync for latest connected user (default 30 days).
-- `GET /api/oura/sync?days=7`
-  - Runs sync for last 7 days.
-- `GET /api/oura/sync?userId=<uuid>&days=30`
-  - Runs sync for a specific user.
-
-## Environment Variables (`apps/web/.env.local`)
+2. Confirm env file exists at `apps/web/.env.local` and includes:
 
 ```env
-OURA_CLIENT_ID=your_client_id
-OURA_CLIENT_SECRET=your_client_secret
-OURA_REDIRECT_URI=http://localhost:3000/api/auth/oura/callback
 DATABASE_URL=postgresql://app:app@localhost:5433/oura
+OURA_CLIENT_ID=...
+OURA_CLIENT_SECRET=...
+OURA_REDIRECT_URI=http://localhost:3000/api/auth/oura/callback
 ```
 
-## Run Locally
+## Start everything
 
-1. Start database:
-```bash
-docker compose up -d db
-```
+From repository root:
 
-2. Start web app:
-```bash
-cd apps/web
+```powershell
 npm run dev
 ```
 
-3. Connect Oura (authorize URL in browser), then test:
+This does both:
+
+1. Starts PostgreSQL in Docker (`db`) on `localhost:5433`.
+2. Starts the Next.js app in `apps/web`.
+
+Open the app at:
+
+- `http://localhost:3000`
+- If 3000 is busy, use the fallback URL shown in terminal (example: `http://localhost:3001`).
+
+## Useful commands
+
+```powershell
+npm run db:up
+npm run db:down
+npm run db:logs
+npm run web:dev
+npm run web:build
+```
+
+## OAuth + sync flow
+
+After app is running:
+
+1. Start OAuth login in browser (replace `YOUR_CLIENT_ID`):
+
+```text
+https://cloud.ouraring.com/oauth/authorize?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:3000/api/auth/oura/callback&scope=daily%20heartrate
+```
+
+2. Run a sync:
+
 ```text
 http://localhost:3000/api/oura/sync?days=7
 ```
 
-## Notes
+## Troubleshooting
 
-- Docker Postgres is mapped to host port `5433` to avoid conflict with local Postgres.
-- If `/api/oura/sync` fails, check the JSON error body and server logs first.
+- `Port 3000 is in use`: stop old Node process, then rerun `npm run dev`.
+- `Unable to acquire lock ... .next/dev/lock`: another `next dev` is already running in `apps/web`; stop it and restart.
+- DB connection errors: run `npm run db:logs` and verify `DATABASE_URL` uses port `5433`.
 
-## Next Step
-
-Build a dashboard page that reads from `daily_summary` and displays latest sleep, activity, and readiness scores.
+## The architecture to retrieve the data
+Oura API
+   ↓
+fetchWithAutoRefresh()
+   ↓
+saveRawDailyData()
+   ↓
+saveDailySummary()
+   ↓
+daily_summary table

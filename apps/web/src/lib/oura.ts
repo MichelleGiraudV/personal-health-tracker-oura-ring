@@ -1,25 +1,9 @@
 import { query } from "@/lib/db";
+import {OuraTokenRow,OuraDailySource, DailySummaryAccumulator } from '../app/types/types.oura'
 
 const OURA_TOKEN_URL = "https://api.ouraring.com/oauth/token";
 const OURA_V2_BASE_URL = "https://api.ouraring.com/v2/usercollection";
 
-type OuraTokenRow = {
-  user_id: string;
-  access_token: string;
-  refresh_token: string;
-  expires_at: Date;
-};
-
-type OuraDailySource = "daily_sleep" | "daily_activity" | "daily_readiness";
-
-type DailySummaryAccumulator = {
-  sleep_total_seconds?: number | null;
-  sleep_efficiency?: number | null;
-  sleep_latency_seconds?: number | null;
-  readiness_score?: number | null;
-  steps?: number | null;
-  activity_score?: number | null;
-};
 
 function getBasicAuthHeader() {
   const clientId = process.env.OURA_CLIENT_ID;
@@ -148,6 +132,14 @@ function normalizeNumber(value: unknown): number | null {
   return null;
 }
 
+function normalizePositiveNumber(value: unknown): number | null {
+  const normalized = normalizeNumber(value);
+  if (normalized === null || normalized <= 0) {
+    return null;
+  }
+  return normalized;
+}
+
 async function saveRawDailyData(
   userId: string,
   source: OuraDailySource,
@@ -173,6 +165,18 @@ async function saveRawDailyData(
 }
 
 function buildSummaryPatch(source: OuraDailySource, row: Record<string, unknown>): DailySummaryAccumulator {
+  if (source === "sleep") {
+    return {
+      sleep_total_seconds: normalizeNumber(row.total_sleep_duration),
+      sleep_efficiency: normalizeNumber(row.efficiency),
+      sleep_latency_seconds: normalizeNumber(row.latency),
+      hrv_avg_ms: normalizePositiveNumber(row.average_hrv),
+      resting_hr_bpm:
+        normalizePositiveNumber(row.lowest_heart_rate) ??
+        normalizePositiveNumber(row.average_heart_rate),
+    };
+  }
+
   if (source === "daily_sleep") {
     return {
       sleep_total_seconds: normalizeNumber(row.total_sleep_duration),
@@ -184,6 +188,15 @@ function buildSummaryPatch(source: OuraDailySource, row: Record<string, unknown>
   if (source === "daily_readiness") {
     return {
       readiness_score: normalizeNumber(row.score),
+    };
+  }
+
+  if (source === "daily_stress") {
+    return {
+      stress_high_minutes: normalizeNumber(row.stress_high),
+      recovery_high_minutes: normalizeNumber(row.recovery_high),
+      stress_day_summary:
+        typeof row.day_summary === "string" ? row.day_summary : null,
     };
   }
 
@@ -214,8 +227,13 @@ async function saveDailySummary(userId: string, source: OuraDailySource, payload
          readiness_score,
          steps,
          activity_score,
+         hrv_avg_ms,
+         resting_hr_bpm,
+         stress_high_minutes, 
+         recovery_high_minutes, 
+         stress_day_summary,
          updated_at
-       ) values ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
        on conflict (user_id, day)
        do update set
          sleep_total_seconds = coalesce(excluded.sleep_total_seconds, daily_summary.sleep_total_seconds),
@@ -224,6 +242,11 @@ async function saveDailySummary(userId: string, source: OuraDailySource, payload
          readiness_score = coalesce(excluded.readiness_score, daily_summary.readiness_score),
          steps = coalesce(excluded.steps, daily_summary.steps),
          activity_score = coalesce(excluded.activity_score, daily_summary.activity_score),
+         hrv_avg_ms = coalesce(excluded.hrv_avg_ms, daily_summary.hrv_avg_ms),
+         resting_hr_bpm = coalesce(excluded.resting_hr_bpm, daily_summary.resting_hr_bpm),
+         stress_high_minutes = coalesce(excluded.stress_high_minutes, daily_summary.stress_high_minutes),
+         recovery_high_minutes = coalesce(excluded.recovery_high_minutes, daily_summary.recovery_high_minutes),
+         stress_day_summary = coalesce(excluded.stress_day_summary, daily_summary.stress_day_summary),
          updated_at = now()`,
       [
         userId,
@@ -234,6 +257,11 @@ async function saveDailySummary(userId: string, source: OuraDailySource, payload
         patch.readiness_score ?? null,
         patch.steps ?? null,
         patch.activity_score ?? null,
+        patch.hrv_avg_ms ?? null,
+        patch.resting_hr_bpm ?? null,
+        patch.stress_high_minutes ?? null,
+        patch.recovery_high_minutes ?? null,
+        patch.stress_day_summary ?? null
       ]
     );
   }
@@ -253,9 +281,11 @@ export async function syncOuraForUser(userId: string, days = 30) {
   const end = toISODate(endDate);
 
   const sources: Array<{ endpoint: OuraDailySource; source: OuraDailySource }> = [
+    { endpoint: "sleep", source: "sleep" },
     { endpoint: "daily_sleep", source: "daily_sleep" },
     { endpoint: "daily_activity", source: "daily_activity" },
     { endpoint: "daily_readiness", source: "daily_readiness" },
+    { endpoint: "daily_stress", source: "daily_stress" },
   ];
 
   const summary: Record<string, number> = {};
