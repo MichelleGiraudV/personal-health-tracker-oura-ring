@@ -6,6 +6,20 @@ import { Pill } from "./components/Pill";
 import { SegmentedControl } from "./components/SegmentedControl";
 import { InsightCard } from "./components/InsightCard";
 
+function getBand(
+  value: number | null,
+  goodThreshold: number,
+  lowThreshold: number,
+  goodLabel = "High",
+  midLabel = "Normal",
+  lowLabel = "Low"
+) {
+  if (value === null) return "No data";
+  if (value >= goodThreshold) return goodLabel;
+  if (value <= lowThreshold) return lowLabel;
+  return midLabel;
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -206,6 +220,38 @@ export default async function Home({
       : latestReadiness !== null && latestReadiness >= 60
       ? "Keep it light: easy cardio, walk, and mobility work."
       : "Recovery day: reduce strain and prioritize sleep tonight.";
+
+  const recoveryState = getBand(latestReadiness, 75, 60, "High", "Normal", "Low");
+  const sleepState = getBand(
+    latestSleepRow?.sleep_total_seconds ?? null,
+    7 * 3600,
+    6 * 3600,
+    "On target",
+    "Normal",
+    "Low"
+  );
+  const stressState =
+    latestStressHigh === null
+      ? "No data"
+      : latestStressHigh >= 120
+      ? "High"
+      : latestStressHigh >= 60
+      ? "Balanced"
+      : "Low";
+  const activityState =
+    latestStepsRow?.steps === null || latestStepsRow?.steps === undefined
+      ? "No data"
+      : latestStepsRow.steps >= 10000
+      ? "High"
+      : latestStepsRow.steps >= 7000
+      ? "Moderate"
+      : "Low";
+  const overallState =
+    latestReadiness !== null && latestReadiness >= 75 && sleepState !== "Low" && stressState !== "High"
+      ? "Ready"
+      : latestReadiness !== null && latestReadiness >= 60
+      ? "Slight fatigue"
+      : "Recovery needed";
 
   const sleepConsistencyCount = historyRowsN.filter(
     (row) => row.sleep_total_seconds !== null && row.sleep_total_seconds >= 7 * 3600
@@ -563,6 +609,21 @@ export default async function Home({
             </section>
 
             <section className="space-y-3">
+              <article className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Body status</p>
+                <h3 className="mt-2 text-xl font-semibold text-zinc-900">Body Status Today</h3>
+                <div className="mt-4 grid gap-2 text-sm text-zinc-700 sm:grid-cols-2">
+                  <p>Recovery: <span className="font-semibold text-zinc-900">{recoveryState}</span></p>
+                  <p>Sleep: <span className="font-semibold text-zinc-900">{sleepState}</span></p>
+                  <p>Stress: <span className="font-semibold text-zinc-900">{stressState}</span></p>
+                  <p>Activity: <span className="font-semibold text-zinc-900">{activityState}</span></p>
+                </div>
+                <p className="mt-4 text-sm text-zinc-700">
+                  Overall signal: <span className="font-semibold text-zinc-900">{overallState}</span>
+                </p>
+                <p className="mt-1 text-sm text-zinc-600">Recommendation: {actionCard}</p>
+              </article>
+
               <h2 className="text-xl font-semibold">Insights</h2>
               <div className="flex flex-wrap gap-2">
                 {bodyFlags.length === 0 ? (
