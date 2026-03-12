@@ -6,13 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
     "framer-motion": "^12.6.3",
     "lucide-react": "^0.577.0",
     "next": "16.1.6",
-    "personal-health-tracker-oura-ring": "file:../..",
     "pg": "^8.13.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
@@ -23,6 +22,8 @@
     "@types/pg": "^8.11.10",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "eslint": "^9.38.0",
+    "eslint-config-next": "16.1.6",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.7.2"
   }

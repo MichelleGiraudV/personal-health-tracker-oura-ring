@@ -6,8 +6,8 @@
     "db:up": "docker compose up -d db",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f db",
-    "web:dev": "npm --prefix apps/web run dev",
-    "web:build": "npm --prefix apps/web run build",
+    "web:dev": "cd apps/web && npm run dev",
+    "web:build": "cd apps/web && npm run build",
     "dev": "npm run db:up && npm run web:dev"
   },
   "dependencies": {
