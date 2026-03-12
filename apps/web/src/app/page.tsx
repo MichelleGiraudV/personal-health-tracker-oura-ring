@@ -169,12 +169,7 @@ export default async function Home({
 
   const latestReadiness = latest?.readiness_score ?? null;
   const latestHrv = latestHrvRow?.hrv_avg_ms ?? null;
-  const latestRhr = latestHrvRow?.resting_hr_bpm ?? null;
   const latestStressHigh = latestStressRow?.stress_high_minutes ?? null;
-  const readinessAverage =
-    readinessValues.length > 0
-      ? Math.round(readinessValues.reduce((sum, value) => sum + value, 0) / readinessValues.length)
-      : null;
   const hrvBaseline =
     hrvValues.length > 0 ? Math.round(hrvValues.reduce((sum, value) => sum + value, 0) / hrvValues.length) : null;
   const sleepBaselineSeconds =
@@ -182,8 +177,6 @@ export default async function Home({
   const stressBaseline =
     stressValues.length > 0 ? Math.round(stressValues.reduce((sum, value) => sum + value, 0) / stressValues.length) : null;
 
-  const readinessDelta =
-    latestReadiness !== null && readinessAverage !== null ? latestReadiness - readinessAverage : null;
   const hrvDelta = latestHrv !== null && hrvBaseline !== null ? Math.round(latestHrv - hrvBaseline) : null;
   const sleepDeltaSeconds =
     latestSleepRow?.sleep_total_seconds !== null &&
