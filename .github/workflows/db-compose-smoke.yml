@@ -1,0 +1,44 @@
+name: DB Compose Smoke
+
+on:
+  pull_request:
+    paths:
+      - "docker-compose.yml"
+      - "infra/**"
+      - ".github/workflows/db-compose-smoke.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "docker-compose.yml"
+      - "infra/**"
+      - ".github/workflows/db-compose-smoke.yml"
+
+jobs:
+  db-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate compose file
+        run: docker compose config
+
+      - name: Start DB container
+        run: docker compose up -d db
+
+      - name: Wait for Postgres readiness
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T db pg_isready -U app -d oura; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"
+          docker compose logs db
+          exit 1
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down -v
