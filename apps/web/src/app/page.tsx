@@ -42,6 +42,7 @@ export default async function Home({
 
   // Fetch ML Prediction from our Python API
   let predictedReadinessTomorrow: number | null = null;
+  let predictedRecoveryDay: string | null = null;
   if (activeUserId) {
     try {
       const predRes = await fetch(`http://localhost:8000/predict-readiness?user_id=${activeUserId}`, {
@@ -50,6 +51,7 @@ export default async function Home({
       if (predRes.ok) {
         const body = await predRes.json();
         predictedReadinessTomorrow = body.predicted_readiness_tomorrow ?? null;
+        predictedRecoveryDay = body.predicted_recovery_day ?? null;
       }
     } catch (error) {
       console.error("Machine Learning API fetch failed (Make sure the uvicorn server is running):", error);
@@ -293,6 +295,14 @@ export default async function Home({
               <>
                 Based on your recent habits, our AI Model predicts your readiness score tomorrow will be{" "}
                 <strong>{predictedReadinessTomorrow}</strong>. Try to prioritize sleep tonight!
+              </>
+            ),
+          },
+          {
+            title: "🔮 AI Prediction for Recovery Day Outlook",
+            body: (
+              <>
+                Tomorrow looks like a <strong>{predictedRecoveryDay}</strong> day.
               </>
             ),
           },

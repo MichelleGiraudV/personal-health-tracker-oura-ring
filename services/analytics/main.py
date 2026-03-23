@@ -305,7 +305,13 @@ def label_readiness(score: float) -> str:
         return "Fair"
     return "Low"
 
-
+def classify_recovery_day(score: float) -> str:
+    if score >= 75:
+        return "Ready"
+    if score >= 60:
+        return "Moderate"
+    return "Recovery"
+    
 # --------------------------------------------------
 # Endpoint: compare models only
 # --------------------------------------------------
@@ -380,6 +386,8 @@ def predict_readiness(user_id: str):
 
     today_features = build_today_features_row(working_df, features)
     predicted_score = float(best_model_pipeline.predict(today_features)[0])
+    predicted_recovery_day = classify_recovery_day(predicted_score)
+
 
     latest_row = working_df.iloc[-1]
     reason = build_prediction_reason(latest_row, working_df)
@@ -394,6 +402,7 @@ def predict_readiness(user_id: str):
         "predicted_readiness_tomorrow": round(predicted_score),
         "predicted_readiness_tomorrow_raw": round(predicted_score, 2),
         "predicted_label": label_readiness(predicted_score),
+        "predicted_recovery_day": predicted_recovery_day,
         "reason": reason,
         "all_model_results": comparison["results"]
     }
