@@ -273,7 +273,7 @@ def build_prediction_reason(latest_row: pd.Series, working_df: pd.DataFrame) -> 
     avg_hrv = working_df["hrv_avg_ms"].mean()
     avg_stress = working_df["stress_high_minutes"].mean()
     avg_resting_hr = working_df["resting_hr_bpm"].mean()
-
+    # Does the latest row actually have a sleep value, or is it missing and Was I able to calculate an average sleep value?
     if pd.notna(latest_row.get("sleep_total_seconds")) and pd.notna(avg_sleep_seconds):
         if latest_row["sleep_total_seconds"] < avg_sleep_seconds:
             reasons.append("sleep below your recent average")
@@ -311,7 +311,42 @@ def classify_recovery_day(score: float) -> str:
     if score >= 60:
         return "Moderate"
     return "Recovery"
-    
+
+
+def build_prediction_confidence(best_model_metrics: dict, training_rows: int) -> dict:
+    mae = float(best_model_metrics["mean_mae"])
+
+    # Lower error and more history should translate into more trust in the prediction.
+    confidence_score = round(100 - (mae * 6))
+
+    if training_rows < 10:
+        confidence_score -= 15
+    elif training_rows < 21:
+        confidence_score -= 7
+
+    confidence_score = max(35, min(95, confidence_score))
+
+    if confidence_score >= 80:
+        confidence_label = "High"
+    elif confidence_score >= 65:
+        confidence_label = "Medium"
+    else:
+        confidence_label = "Low"
+
+    return {
+        "confidence_score": int(confidence_score),
+        "confidence_label": confidence_label,
+    }
+
+
+def build_recommended_action(recovery_day: str) -> str:
+    if recovery_day == "Ready":
+        return "Good day for harder training or a longer workout."
+    if recovery_day == "Moderate":
+        return "Keep effort moderate and avoid stacking extra stress."
+    return "Prioritize recovery with light movement, mobility, and an early night."
+
+
 # --------------------------------------------------
 # Endpoint: compare models only
 # --------------------------------------------------
@@ -382,12 +417,14 @@ def predict_readiness(user_id: str):
         return comparison
 
     best_model_name = comparison["best_model_name"]
+    best_model_metrics = comparison["results"][0]
     best_model_pipeline = train_best_model(X, y, best_model_name)
 
     today_features = build_today_features_row(working_df, features)
     predicted_score = float(best_model_pipeline.predict(today_features)[0])
     predicted_recovery_day = classify_recovery_day(predicted_score)
-
+    confidence = build_prediction_confidence(best_model_metrics, len(train_df))
+    recommended_action = build_recommended_action(predicted_recovery_day)
 
     latest_row = working_df.iloc[-1]
     reason = build_prediction_reason(latest_row, working_df)
@@ -398,11 +435,14 @@ def predict_readiness(user_id: str):
         "history_days": int(len(df)),
         "training_rows": int(len(train_df)),
         "best_model": best_model_name,
-        "best_model_metrics": comparison["results"][0],
+        "best_model_metrics": best_model_metrics,
         "predicted_readiness_tomorrow": round(predicted_score),
         "predicted_readiness_tomorrow_raw": round(predicted_score, 2),
         "predicted_label": label_readiness(predicted_score),
         "predicted_recovery_day": predicted_recovery_day,
+        "confidence_score": confidence["confidence_score"],
+        "confidence_label": confidence["confidence_label"],
+        "recommended_action": recommended_action,
         "reason": reason,
         "all_model_results": comparison["results"]
     }

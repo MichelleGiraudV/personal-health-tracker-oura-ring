@@ -20,6 +20,12 @@ function getBand(
   return midLabel;
 }
 
+function getPredictionPillTone(value: string | null): "neutral" | "good" | "warn" {
+  if (value === "Ready" || value === "High") return "good";
+  if (value === "Recovery" || value === "Low") return "warn";
+  return "neutral";
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -43,6 +49,10 @@ export default async function Home({
   // Fetch ML Prediction from our Python API
   let predictedReadinessTomorrow: number | null = null;
   let predictedRecoveryDay: string | null = null;
+  let predictionConfidenceLabel: string | null = null;
+  let predictionConfidenceScore: number | null = null;
+  let predictionRecommendedAction: string | null = null;
+  let predictionReason: string | null = null;
   if (activeUserId) {
     try {
       const predRes = await fetch(`http://localhost:8000/predict-readiness?user_id=${activeUserId}`, {
@@ -52,6 +62,10 @@ export default async function Home({
         const body = await predRes.json();
         predictedReadinessTomorrow = body.predicted_readiness_tomorrow ?? null;
         predictedRecoveryDay = body.predicted_recovery_day ?? null;
+        predictionConfidenceLabel = body.confidence_label ?? null;
+        predictionConfidenceScore = body.confidence_score ?? null;
+        predictionRecommendedAction = body.recommended_action ?? null;
+        predictionReason = body.reason ?? null;
       }
     } catch (error) {
       console.error("Machine Learning API fetch failed (Make sure the uvicorn server is running):", error);
@@ -291,19 +305,32 @@ export default async function Home({
       ? [
           {
             title: "🔮 AI Prediction for Tomorrow",
-            body: (
-              <>
-                Based on your recent habits, our AI Model predicts your readiness score tomorrow will be{" "}
-                <strong>{predictedReadinessTomorrow}</strong>. Try to prioritize sleep tonight!
-              </>
-            ),
+            body: `Based on your recent habits, our AI model predicts your readiness score tomorrow will be ${predictedReadinessTomorrow}.`,
           },
           {
-            title: "🔮 AI Prediction for Recovery Day Outlook",
+            title: "Recovery Day Outlook",
             body: (
-              <>
-                Tomorrow looks like a <strong>{predictedRecoveryDay}</strong> day.
-              </>
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {predictedRecoveryDay ? (
+                    <Pill tone={getPredictionPillTone(predictedRecoveryDay)}>{predictedRecoveryDay} day</Pill>
+                  ) : null}
+                  {predictionConfidenceLabel && predictionConfidenceScore !== null ? (
+                    <Pill tone={getPredictionPillTone(predictionConfidenceLabel)}>
+                      {predictionConfidenceLabel} confidence ({predictionConfidenceScore}/100)
+                    </Pill>
+                  ) : null}
+                </div>
+                <p>
+                  Tomorrow looks like a <strong>{predictedRecoveryDay}</strong> day.
+                </p>
+                {predictionReason ? <p>Why: {predictionReason}.</p> : null}
+                {predictionRecommendedAction ? (
+                  <p>
+                    Recommended action: <strong>{predictionRecommendedAction}</strong>
+                  </p>
+                ) : null}
+              </div>
             ),
           },
         ]

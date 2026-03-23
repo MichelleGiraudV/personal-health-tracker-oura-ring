@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
+
 type PillProps = {
-  children: string;
+  children: ReactNode;
   tone?: "neutral" | "good" | "warn";
 };
 
