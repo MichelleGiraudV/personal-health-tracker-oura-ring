@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
+
 type InsightCardProps = {
   title: string;
-  body: string;
+  body: ReactNode;
   index?: number;
 };
 

@@ -40,6 +40,22 @@ export default async function Home({
   const range = allowedRanges.includes(parsedRange) ? parsedRange : 14;
   const chartMetric: ChartMetric = resolvedSearchParams?.metric === "activity" ? "activity" : "readiness";
 
+  // Fetch ML Prediction from our Python API
+  let predictedReadinessTomorrow: number | null = null;
+  if (activeUserId) {
+    try {
+      const predRes = await fetch(`http://localhost:8000/predict-readiness?user_id=${activeUserId}`, {
+        cache: "no-store", // We don't want Next.js to cache stale ML predictions
+      });
+      if (predRes.ok) {
+        const body = await predRes.json();
+        predictedReadinessTomorrow = body.predicted_readiness_tomorrow ?? null;
+      }
+    } catch (error) {
+      console.error("Machine Learning API fetch failed (Make sure the uvicorn server is running):", error);
+    }
+  }
+
   const latestRes = activeUserId
     ? await query<DailySummaryRow>(
         `select day, sleep_total_seconds, readiness_score, steps, activity_score, hrv_avg_ms, resting_hr_bpm,
@@ -269,6 +285,19 @@ export default async function Home({
       title: "Consistency",
       body: `Days with sleep >= 7h in last 7 days: ${sleepConsistencyCount}/7.`,
     },
+    ...(predictedReadinessTomorrow !== null
+      ? [
+          {
+            title: "🔮 AI Prediction for Tomorrow",
+            body: (
+              <>
+                Based on your recent habits, our AI Model predicts your readiness score tomorrow will be{" "}
+                <strong>{predictedReadinessTomorrow}</strong>. Try to prioritize sleep tonight!
+              </>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const getYAxisTicks = (values: number[]) => {

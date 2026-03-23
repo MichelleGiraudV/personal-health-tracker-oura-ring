@@ -1,0 +1,6 @@
+fastapi==0.110.0 #To create the web server API
+uvicorn==0.29.0 #To run the web server API
+scikit-learn==1.4.1.post1 #To create the machine learning models
+pandas==2.2.1 #To create the machine learning models
+psycopg2-binary==2.9.9 #To connect to the database
+python-dotenv==1.0.1 #To load the environment variables
