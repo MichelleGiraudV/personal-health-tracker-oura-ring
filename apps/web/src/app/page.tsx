@@ -20,6 +20,12 @@ function getBand(
   return midLabel;
 }
 
+function getPredictionPillTone(value: string | null): "neutral" | "good" | "warn" {
+  if (value === "Ready" || value === "High") return "good";
+  if (value === "Recovery" || value === "Low") return "warn";
+  return "neutral";
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -39,6 +45,32 @@ export default async function Home({
   const parsedRange = Number(resolvedSearchParams?.range);
   const range = allowedRanges.includes(parsedRange) ? parsedRange : 14;
   const chartMetric: ChartMetric = resolvedSearchParams?.metric === "activity" ? "activity" : "readiness";
+
+  // Fetch ML Prediction from our Python API
+  let predictedReadinessTomorrow: number | null = null;
+  let predictedRecoveryDay: string | null = null;
+  let predictionConfidenceLabel: string | null = null;
+  let predictionConfidenceScore: number | null = null;
+  let predictionRecommendedAction: string | null = null;
+  let predictionReason: string | null = null;
+  if (activeUserId) {
+    try {
+      const predRes = await fetch(`http://localhost:8000/predict-readiness?user_id=${activeUserId}`, {
+        cache: "no-store", // We don't want Next.js to cache stale ML predictions
+      });
+      if (predRes.ok) {
+        const body = await predRes.json();
+        predictedReadinessTomorrow = body.predicted_readiness_tomorrow ?? null;
+        predictedRecoveryDay = body.predicted_recovery_day ?? null;
+        predictionConfidenceLabel = body.confidence_label ?? null;
+        predictionConfidenceScore = body.confidence_score ?? null;
+        predictionRecommendedAction = body.recommended_action ?? null;
+        predictionReason = body.reason ?? null;
+      }
+    } catch (error) {
+      console.error("Machine Learning API fetch failed (Make sure the uvicorn server is running):", error);
+    }
+  }
 
   const latestRes = activeUserId
     ? await query<DailySummaryRow>(
@@ -269,6 +301,40 @@ export default async function Home({
       title: "Consistency",
       body: `Days with sleep >= 7h in last 7 days: ${sleepConsistencyCount}/7.`,
     },
+    ...(predictedReadinessTomorrow !== null
+      ? [
+          {
+            title: "🔮 AI Prediction for Tomorrow",
+            body: `Based on your recent habits, our AI model predicts your readiness score tomorrow will be ${predictedReadinessTomorrow}.`,
+          },
+          {
+            title: "Recovery Day Outlook",
+            body: (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {predictedRecoveryDay ? (
+                    <Pill tone={getPredictionPillTone(predictedRecoveryDay)}>{predictedRecoveryDay} day</Pill>
+                  ) : null}
+                  {predictionConfidenceLabel && predictionConfidenceScore !== null ? (
+                    <Pill tone={getPredictionPillTone(predictionConfidenceLabel)}>
+                      {predictionConfidenceLabel} confidence ({predictionConfidenceScore}/100)
+                    </Pill>
+                  ) : null}
+                </div>
+                <p>
+                  Tomorrow looks like a <strong>{predictedRecoveryDay}</strong> day.
+                </p>
+                {predictionReason ? <p>Why: {predictionReason}.</p> : null}
+                {predictionRecommendedAction ? (
+                  <p>
+                    Recommended action: <strong>{predictionRecommendedAction}</strong>
+                  </p>
+                ) : null}
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const getYAxisTicks = (values: number[]) => {

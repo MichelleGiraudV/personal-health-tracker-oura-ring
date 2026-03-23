@@ -9,6 +9,8 @@ out/
 .env
 .env.local
 .env.*.local
+.venv/
+services/analytics/.venv/
 
 # Logs
 npm-debug.log*

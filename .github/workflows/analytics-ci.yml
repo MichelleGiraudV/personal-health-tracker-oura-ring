@@ -1,0 +1,43 @@
+name: Analytics CI
+
+on:
+  pull_request:
+    paths:
+      - "services/analytics/**"
+      - ".github/workflows/analytics-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/analytics/**"
+      - ".github/workflows/analytics-ci.yml"
+
+concurrency:
+  group: analytics-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analytics-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/analytics
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/analytics/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate imports
+        run: python -c "import fastapi, numpy, pandas, psycopg2, sklearn"
+
+      - name: Syntax check
+        run: python -m py_compile main.py
